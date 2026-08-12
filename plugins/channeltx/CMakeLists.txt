@@ -60,6 +60,10 @@ if (ENABLE_CHANNELTX_FILESOURCE)
     add_subdirectory(filesource)
 endif()
 
+if (ENABLE_CHANNELTX_MODDMR)
+    add_subdirectory(moddmr)
+endif()
+
 if (ENABLE_CHANNELTX_REMOTESOURCE AND CM256CC_FOUND AND (HAS_SSE3 OR HAS_NEON))
     add_subdirectory(remotesource)
 else()
