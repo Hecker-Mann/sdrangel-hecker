@@ -6,7 +6,9 @@
 #if !defined(DMRMOD_DEFINES_H)
 #define DMRMOD_DEFINES_H
 
+#ifndef USE_DMR
 #define USE_DMR
+#endif
 
 const unsigned char TAG_DATA = 0x01U;
 

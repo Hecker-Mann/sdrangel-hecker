@@ -10,6 +10,7 @@
 #include "SWGWorkspaceInfo.h"
 #include "SWGChannelReport.h"
 
+#include "dsp/dspcommands.h"
 #include "device/deviceapi.h"
 #include "dmrmodbaseband.h"
 #include "dmrmod.h"
@@ -88,12 +89,12 @@ bool DMRMod::handleMessage(const Message& cmd)
     }
   else if (MsgStartVoice::match(cmd))
     {
-        m_basebandSource->getInputMessageQueue()->push(new MsgStartVoice());
+        m_basebandSource->getInputMessageQueue()->push(MsgStartVoice::create());
         return true;
     }
     else if (MsgStopVoice::match(cmd))
     {
-        m_basebandSource->getInputMessageQueue()->push(new MsgStopVoice());
+        m_basebandSource->getInputMessageQueue()->push(MsgStopVoice::create());
         return true;
     }
     else if (DSPSignalNotification::match(cmd))

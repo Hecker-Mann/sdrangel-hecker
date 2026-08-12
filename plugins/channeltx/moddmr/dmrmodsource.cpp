@@ -6,7 +6,6 @@
 #include <algorithm>
 #include <QDebug>
 
-#include "util/db.h"
 #include "dmrmodsource.h"
 
 const int DMRModSource::m_levelNbSamples = 480;
@@ -238,7 +237,7 @@ void DMRModSource::applyAudioSampleRate(int sampleRate)
 void DMRModSource::applySettings(const QStringList& settingsKeys, const DMRModSettings& settings, bool force)
 {
     if (settingsKeys.contains("gain") || force) {
-        m_linearGain = Db::powerDb2mag(settings.m_gain);
+        m_linearGain = powf(10.0f, settings.m_gain / 20.0f);
     }
 
     if (settingsKeys.contains("colorCode")
@@ -288,7 +287,7 @@ void DMRModSource::applyChannelSettings(int channelSampleRate, int channelFreque
 {
     if ((channelSampleRate != m_channelSampleRate) || force) {
         m_carrierNco.setFreq(channelFrequencyOffset, channelSampleRate);
-        m_modem.configure(channelSampleRate, Db::powerDb2mag(m_settings.m_gain));
+        m_modem.configure(channelSampleRate, powf(10.0f, m_settings.m_gain / 20.0f));
         m_frameByteIdx = 33;
     } else if (channelFrequencyOffset != m_channelFrequencyOffset) {
         m_carrierNco.setFreq(channelFrequencyOffset, channelSampleRate);

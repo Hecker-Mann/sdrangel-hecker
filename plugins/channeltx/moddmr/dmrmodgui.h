@@ -8,6 +8,7 @@
 #include "channel/channelgui.h"
 #include "dsp/channelmarker.h"
 #include "util/messagequeue.h"
+#include "util/movingaverage.h"
 #include "settings/rollupstate.h"
 #include "dmrmod.h"
 #include "dmrmodsettings.h"
@@ -56,6 +57,7 @@ private:
     bool m_doApplySettings;
     DMRMod* m_dmrMod;
     MessageQueue m_inputMessageQueue;
+    MovingAverageUtil<double, double, 20> m_channelPowerDbAvg;
 
     explicit DMRModGUI(PluginAPI* pluginAPI, DeviceUISet *deviceUISet, BasebandSampleSource *channelTx, QWidget* parent = 0);
     virtual ~DMRModGUI();
@@ -77,8 +79,9 @@ private slots:
     void on_srcId_valueChanged(int value);
     void on_dstId_valueChanged(int value);
     void on_groupCall_toggled(bool checked);
-    void on_slot_currentIndexChanged(int index);
+    void on_slot_valueChanged(int value);
     void on_mode_currentIndexChanged(int index);
+    void on_channelMute_toggled(bool checked);
     void on_duplex_toggled(bool checked);
     void on_micEnable_toggled(bool checked);
     void on_micVolume_valueChanged(int value);

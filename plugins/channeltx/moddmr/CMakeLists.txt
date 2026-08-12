@@ -22,7 +22,7 @@ set(moddmr_CODEC_SOURCES
 set(moddmr_AMBE_SOURCES
     dmrambeencoder.cpp
     opendmr/encoder/mbeenc.cpp
-    opendmr/encoder/cgolay24128.cpp
+    # cgolay24128.cpp is a duplicate of dmrcodec/Golay24128.cpp (same CGolay24128 symbols)
     opendmr/encoder/aux_sub.cc
     opendmr/encoder/basicop2.cc
     opendmr/encoder/ch_encode.cc
@@ -125,8 +125,12 @@ target_link_libraries(${TARGET_NAME} PRIVATE
     sdrbase
     ${TARGET_LIB_GUI}
     swagger
-    m
 )
+
+# libm is part of the CRT on Windows; -lm / m.lib only exists on Unix
+if(UNIX)
+    target_link_libraries(${TARGET_NAME} PRIVATE m)
+endif()
 
 install(TARGETS ${TARGET_NAME} DESTINATION ${INSTALL_FOLDER})
 

@@ -11,6 +11,7 @@
 #include "gui/colormapper.h"
 #include "maincore.h"
 #include "dsp/dspcommands.h"
+#include "util/db.h"
 
 #include "ui_dmrmodgui.h"
 #include "dmrmodgui.h"
@@ -71,7 +72,8 @@ DMRModGUI::DMRModGUI(PluginAPI* pluginAPI, DeviceUISet *deviceUISet, BasebandSam
     displaySettings();
     makeUIConnections();
     applySettings(QStringList(), true);
-    m_doApplySettings = false;
+    DialPopup::addPopupsToChildDials(this);
+    m_resizer.enableChildMouseTracking();
 }
 
 DMRModGUI::~DMRModGUI()
@@ -119,20 +121,36 @@ void DMRModGUI::applySettings(const QStringList& settingsKeys, bool force)
 
 void DMRModGUI::displaySettings()
 {
-    ui->deltaFrequency->setValue(m_settings.m_inputFrequencyOffset);
+    m_channelMarker.blockSignals(true);
+    m_channelMarker.setCenterFrequency(m_settings.m_inputFrequencyOffset);
+    m_channelMarker.setTitle(m_settings.m_title);
+    m_channelMarker.blockSignals(false);
+    m_channelMarker.setColor(m_settings.m_rgbColor);
+
+    setTitleColor(m_settings.m_rgbColor);
+    setWindowTitle(m_channelMarker.getTitle());
+    setTitle(m_channelMarker.getTitle());
+    updateIndexLabel();
+
+    blockApplySettings(true);
+    ui->deltaFrequency->setValue(m_channelMarker.getCenterFrequency());
     ui->gain->setValue((int) (m_settings.m_gain * 10.0f));
     ui->gainText->setText(QString("%1 dB").arg(m_settings.m_gain, 0, 'f', 1));
     ui->colorCode->setValue(m_settings.m_colorCode);
     ui->srcId->setValue(m_settings.m_srcId);
     ui->dstId->setValue(m_settings.m_dstId);
     ui->groupCall->setChecked(m_settings.m_groupCall);
-    ui->slot->setCurrentIndex(m_settings.m_slot == 2 ? 1 : 0);
+    ui->slot->setValue(m_settings.m_slot == 2 ? 2 : 1);
     ui->mode->setCurrentIndex(m_settings.m_mode);
     ui->duplex->setChecked(m_settings.m_duplex);
     ui->micEnable->setChecked(m_settings.m_micEnable);
     ui->micVolume->setValue((int) (m_settings.m_micVolume * 10.0f));
-    ui->micVolumeText->setText(QString("%1").arg(m_settings.m_micVolume, 0, 'f', 1));
+    ui->micVolumeText->setText(QString("%1x").arg(m_settings.m_micVolume, 0, 'f', 1));
     ui->ambeGain->setValue(m_settings.m_ambeGainDb);
+    ui->channelMute->setChecked(m_settings.m_channelMute);
+    getRollupContents()->restoreState(m_rollupState);
+    updateAbsoluteCenterFrequency();
+    blockApplySettings(false);
 }
 
 void DMRModGUI::updateAbsoluteCenterFrequency()
@@ -221,10 +239,16 @@ void DMRModGUI::on_groupCall_toggled(bool checked)
     applySettings(QStringList("groupCall"));
 }
 
-void DMRModGUI::on_slot_currentIndexChanged(int index)
+void DMRModGUI::on_slot_valueChanged(int value)
 {
-    m_settings.m_slot = index == 1 ? 2 : 1;
+    m_settings.m_slot = value;
     applySettings(QStringList("slot"));
+}
+
+void DMRModGUI::on_channelMute_toggled(bool checked)
+{
+    m_settings.m_channelMute = checked;
+    applySettings(QStringList("channelMute"));
 }
 
 void DMRModGUI::on_mode_currentIndexChanged(int index)
@@ -248,7 +272,7 @@ void DMRModGUI::on_micEnable_toggled(bool checked)
 void DMRModGUI::on_micVolume_valueChanged(int value)
 {
     m_settings.m_micVolume = value / 10.0f;
-    ui->micVolumeText->setText(QString("%1").arg(m_settings.m_micVolume, 0, 'f', 1));
+    ui->micVolumeText->setText(QString("%1x").arg(m_settings.m_micVolume, 0, 'f', 1));
     applySettings(QStringList("micVolume"));
 }
 
@@ -286,7 +310,6 @@ void DMRModGUI::onMenuDialogCalled(const QPoint& p)
         dialog.setReverseAPIDeviceIndex(m_settings.m_reverseAPIDeviceIndex);
         dialog.setReverseAPIChannelIndex(m_settings.m_reverseAPIChannelIndex);
         dialog.setDefaultTitle(m_displayedName);
-        dialog.setDefaultColor(m_settings.m_rgbColor);
         dialog.move(p);
         new DialogPositioner(&dialog, false);
         dialog.exec();
@@ -299,8 +322,15 @@ void DMRModGUI::onMenuDialogCalled(const QPoint& p)
         m_settings.m_reverseAPIDeviceIndex = dialog.getReverseAPIDeviceIndex();
         m_settings.m_reverseAPIChannelIndex = dialog.getReverseAPIChannelIndex();
 
-        applySettings(QStringList("title"), true);
+        setWindowTitle(m_settings.m_title);
+        setTitle(m_channelMarker.getTitle());
+        setTitleColor(m_settings.m_rgbColor);
+
+        applySettings(QStringList({"rgbColor", "title", "useReverseAPI", "reverseAPIAddress",
+            "reverseAPIPort", "reverseAPIDeviceIndex", "reverseAPIChannelIndex"}));
     }
+
+    resetContextMenuType();
 }
 
 void DMRModGUI::leaveEvent(QEvent* event)
@@ -317,9 +347,9 @@ void DMRModGUI::enterEvent(EnterEventType* event)
 
 void DMRModGUI::tick()
 {
-    if (m_enableNavTime) {
-        enableNavTime(false);
-    }
+    double powDb = CalcDb::dbPower(m_dmrMod->getMagSq());
+    m_channelPowerDbAvg(powDb);
+    ui->channelPower->setText(tr("%1 dB").arg(m_channelPowerDbAvg.asDouble(), 0, 'f', 1));
 }
 
 void DMRModGUI::makeUIConnections()
@@ -330,11 +360,12 @@ void DMRModGUI::makeUIConnections()
     QObject::connect(ui->srcId, &QSpinBox::valueChanged, this, &DMRModGUI::on_srcId_valueChanged);
     QObject::connect(ui->dstId, &QSpinBox::valueChanged, this, &DMRModGUI::on_dstId_valueChanged);
     QObject::connect(ui->groupCall, &QCheckBox::toggled, this, &DMRModGUI::on_groupCall_toggled);
-    QObject::connect(ui->slot, &QComboBox::currentIndexChanged, this, &DMRModGUI::on_slot_currentIndexChanged);
-    QObject::connect(ui->mode, &QComboBox::currentIndexChanged, this, &DMRModGUI::on_mode_currentIndexChanged);
+    QObject::connect(ui->slot, QOverload<int>::of(&QSpinBox::valueChanged), this, &DMRModGUI::on_slot_valueChanged);
+    QObject::connect(ui->mode, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &DMRModGUI::on_mode_currentIndexChanged);
     QObject::connect(ui->duplex, &QCheckBox::toggled, this, &DMRModGUI::on_duplex_toggled);
     QObject::connect(ui->micEnable, &QCheckBox::toggled, this, &DMRModGUI::on_micEnable_toggled);
     QObject::connect(ui->micVolume, &QDial::valueChanged, this, &DMRModGUI::on_micVolume_valueChanged);
     QObject::connect(ui->ambeGain, &QSpinBox::valueChanged, this, &DMRModGUI::on_ambeGain_valueChanged);
+    QObject::connect(ui->channelMute, &QToolButton::toggled, this, &DMRModGUI::on_channelMute_toggled);
     QObject::connect(ui->txButton, &QToolButton::toggled, this, &DMRModGUI::on_txButton_toggled);
 }

@@ -11,15 +11,9 @@
 #include "dmrcodec/Sync.h"
 #include "dmrambeencoder.h"
 
-static const uint8_t DMR_IDLE_DATA[] = {
-    0x53U, 0xC2U, 0x5EU, 0xABU, 0xA8U, 0x67U, 0x1DU, 0xC7U, 0x38U, 0x3BU, 0xD9U,
-    0x36U, 0x00U, 0x0DU, 0xFFU, 0x57U, 0xD7U, 0x5DU, 0xF5U, 0xD0U, 0x03U, 0xF6U,
-    0xE4U, 0x65U, 0x17U, 0x1BU, 0x48U, 0xCAU, 0x6DU, 0x4FU, 0xC6U, 0x10U, 0xB4U};
-
-static const uint8_t DMR_SILENCE_PAYLOAD[] = {
-    0xB9U, 0xE8U, 0x81U, 0x52U, 0x61U, 0x73U, 0x00U, 0x2AU, 0x6BU, 0xB9U, 0xE8U,
-    0x81U, 0x52U, 0x60U, 0x00U, 0x00U, 0x00U, 0x00U, 0x00U, 0x01U, 0x73U, 0x00U,
-    0x2AU, 0x6BU, 0xB9U, 0xE8U, 0x81U, 0x52U, 0x61U, 0x73U, 0x00U, 0x2AU, 0x6BU};
+// DMRDefines.h prefixes these with TAG_DATA + 0x00; skip that for the 33-byte air frame.
+static const unsigned char *const DMR_IDLE_FRAME = DMR_IDLE_DATA + 2;
+static const unsigned char *const DMR_SILENCE_FRAME = DMR_SILENCE_DATA + 2;
 
 static const uint8_t CACH_INTERLEAVE[] = {
     1U,  2U,  3U,  5U,  6U,  7U,  9U, 10U, 11U, 13U, 15U, 16U, 17U, 19U, 20U, 21U, 23U,
@@ -46,7 +40,7 @@ DMRFrameBuilder::DMRFrameBuilder() :
     m_txState(StateSlot1),
     m_cachPtr(0)
 {
-    std::memcpy(m_idle, DMR_IDLE_DATA, DMR_FRAME_LENGTH_BYTES);
+    std::memcpy(m_idle, DMR_IDLE_FRAME, DMR_FRAME_LENGTH_BYTES);
 }
 
 void DMRFrameBuilder::configure(
@@ -66,7 +60,7 @@ void DMRFrameBuilder::configure(
     m_duplex = duplex;
     m_mode = mode;
 
-    std::memcpy(m_idle, DMR_IDLE_DATA, DMR_FRAME_LENGTH_BYTES);
+    std::memcpy(m_idle, DMR_IDLE_FRAME, DMR_FRAME_LENGTH_BYTES);
     applySlotType(m_idle, DT_IDLE);
 }
 
@@ -104,7 +98,7 @@ void DMRFrameBuilder::fillVoicePayload(uint8_t* frame)
         return;
     }
     // Fallback: standard silence AMBE burst
-    std::memcpy(frame, DMR_SILENCE_PAYLOAD, DMR_FRAME_LENGTH_BYTES);
+    std::memcpy(frame, DMR_SILENCE_FRAME, DMR_FRAME_LENGTH_BYTES);
 }
 
 void DMRFrameBuilder::buildIdle(uint8_t* frame)
